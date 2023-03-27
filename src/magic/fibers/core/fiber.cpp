@@ -70,6 +70,18 @@ void Fiber::Resume() {
   Schedule();
 }
 
+// Interface: ITask
+void Fiber::Run() noexcept {
+  auto next = this;
+  while (next) {
+    next = next->RunFiber();
+  }
+}
+
+void Fiber::Discard() noexcept {
+  Destroy();
+}
+
 Fiber* Fiber::RunFiber() {
   Step();
 
@@ -105,19 +117,6 @@ void Fiber::Step() {
 void Fiber::Destroy() {
   ReleaseStack(std::move(stack_));
   delete this;
-}
-
-// Interface: ITask
-
-void Fiber::Run() noexcept {
-  auto next = this;
-  while (next) {
-    next = next->RunFiber();
-  }
-}
-
-void Fiber::Discard() noexcept {
-  Destroy();
 }
 
 //////////////////////////////////////////////////////////////////////

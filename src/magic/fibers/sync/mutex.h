@@ -1,5 +1,7 @@
 #pragma once
 
+#include <magic/common/intrusive/forward_list.h>
+
 #include <magic/executors/strand.h>
 #include <magic/executors/thread_pool.h>
 
@@ -15,7 +17,9 @@ namespace magic::fibers {
 
 //////////////////////////////////////////////////////////////////////
 
-class LockFreeMutex final {
+class Mutex final {
+  using State = uint64_t;
+
   struct States {
     enum _ {
       Unlocked = 0,
@@ -24,38 +28,32 @@ class LockFreeMutex final {
     };
   };
 
-  using State = uint64_t;
-
-  struct WaitNode {
-    FiberHandle handle;
-    WaitNode* next = nullptr;
-  };
-
-  struct LockAwaiter : public IMaybeSuspendAwaiter {
-    LockAwaiter(LockFreeMutex& mutex) : mutex_(mutex) {
+  struct Locker : public IMaybeSuspendAwaiter, public IntrusiveForwardListNode<Locker> {
+    Locker(Mutex& mutex) : mutex_(mutex) {
     }
 
     // Interface: IMaybeSuspendAwaiter
     bool AwaitSuspend(FiberHandle handle) override {
       assert(handle.IsValid());
-      node_.handle = handle;
-      if (mutex_.Acquire(&node_)) {
-        return true;
-      }
-      return false;
+      handle_ = handle;
+      return mutex_.TryLockOrEnqueue(this);
+    }
+
+    FiberHandle GetFiberHandle() const {
+      return handle_;
     }
 
    private:
-    WaitNode node_;
-    LockFreeMutex& mutex_;
+    Mutex& mutex_;
+    FiberHandle handle_;
   };
 
-  struct UnlockAwaiter : ISuspendAwaiter {
-    UnlockAwaiter(FiberHandle next) : next_(next) {
+  struct Unlocker : ISuspendAwaiter {
+    Unlocker(FiberHandle next) : next_(next) {
     }
 
     FiberHandle OnCompleted(FiberHandle handle) override {
-      auto next = next_; // This awaiter can be destroyed after next line!
+      auto next = next_;  // This awaiter can be destroyed after next line!
       handle.Schedule();
       return next;
     }
@@ -67,16 +65,21 @@ class LockFreeMutex final {
   //////////////////////////////////////////////////////////////////////
 
  public:
-  void Lock() {
-    if (TryAcquire()) {
-      return;  // Fast path
-    }
-    auto awaiter = LockAwaiter(*this);
-    self::Suspend(awaiter);
-  }
+
+  // ~ Public Interface
 
   bool TryLock() {
-    return TryAcquire();
+    State state = States::Unlocked;
+    return state_.compare_exchange_strong(state, States::LockedNoWaiters,
+                                          std::memory_order::acquire);
+  }
+
+  void Lock() {
+    if (TryLock()) {
+      return;  // Fast path
+    }
+    auto awaiter = Locker(*this);
+    self::Suspend(awaiter);
   }
 
   void Unlock() {
@@ -96,37 +99,34 @@ class LockFreeMutex final {
   //////////////////////////////////////////////////////////////////////
 
  private:
-  bool TryAcquire() {
-    State current = States::Unlocked;
-    return state_.compare_exchange_strong(current, States::LockedNoWaiters,
-                                          std::memory_order::acquire);
-  }
+  using Node = IntrusiveForwardListNode<Locker>;
+  using WaiterList = IntrusiveForwardList<Locker>;
+  using AtomicState = std::atomic<State>;
 
-  bool Acquire(WaitNode* node) {
+  bool TryLockOrEnqueue(Node* node) {
     while (true) {
       auto state = state_.load();
       if (state == States::Unlocked) {
-        if (TryAcquire()) {
+        if (TryLock()) {
           return true;
         }
         continue;
       } else {
         if (state == States::LockedNoWaiters) {
-          node->next = nullptr;
+          node->ResetNext();
         } else {
-          node->next = (WaitNode*)state;
+          node->SetNext((Node*)state);
         }
         if (state_.compare_exchange_strong(state, (State)node)) {
           return false;
         }
-        continue;
       }
     }
   }
 
   void Release() {
-    if (head_ != nullptr) {
-      ResumeNextOwner(TakeNextOwner());
+    if (waiters_.HasItems()) {
+      ResumeNextWaiter();
       return;
     }
     // head list is empty
@@ -137,48 +137,38 @@ class LockFreeMutex final {
         if (state_.compare_exchange_strong(state, States::Unlocked, std::memory_order::release)) {
           return;
         }
-        continue ;
+        continue;
       }
       // Wait list
-      WaitNode* waiters = (WaitNode*)state_.exchange(States::LockedNoWaiters, std::memory_order::acquire);
-      head_ = ReverseList(waiters);
-      ResumeNextOwner(TakeNextOwner());
-      return ;
+      auto head = (Node*)state_.exchange(States::LockedNoWaiters, std::memory_order::acquire);
+      AppendToList(head);
+      ResumeNextWaiter();
+      return;
     }
   }
 
-  FiberHandle TakeNextOwner() {
-    auto next = head_;
-    head_ = head_->next;
-    return next->handle;
+  void ResumeNextWaiter() {
+    assert(waiters_.HasItems());
+    auto next = waiters_.PopFront();
+    auto unlocker = Unlocker(next->GetFiberHandle());
+    self::Suspend(unlocker);
   }
 
-  void ResumeNextOwner(FiberHandle handle) {
-    auto awaiter = UnlockAwaiter(handle);
-    self::Suspend(awaiter);
-  }
-
-  static WaitNode* ReverseList(WaitNode* head) {
-    auto prev = head;
-    auto curr = prev->next;
-    while (curr != nullptr) {
-      auto next = curr->next;
-      curr->next = prev;
-      prev = curr;
+  void AppendToList(Node* head) {
+    assert(waiters_.IsEmpty());
+    auto curr = head;
+    while (curr) {
+      auto next = curr->Next();
+      waiters_.PushBack(curr);
       curr = next;
     }
-    head->next = nullptr;
-
-    return prev;
   }
 
  private:
-  std::atomic<State> state_ = States::Unlocked;
-  WaitNode* head_ = nullptr;
+  AtomicState state_ = States::Unlocked;
+  WaiterList waiters_;
 };
-
-using Mutex = LockFreeMutex;
 
 //////////////////////////////////////////////////////////////////////
 
-}  // namespace magic
+}  // namespace magic::fibers

@@ -156,6 +156,7 @@ TEST(Mutex, StressTest_1_3) {
 
 void StressTest2(size_t fibers, Duration duration) {
   InitializeStressTest();
+
   ThreadPool scheduler{4};
 
   while (KeepRunning(duration)) {

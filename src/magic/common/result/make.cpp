@@ -32,7 +32,7 @@ Status ToStatus(std::error_code error) {
   }
 }
 
-detail::Failure NotSupported() {
+detail::Failure NotImplemented() {
   return Fail(std::make_error_code(std::errc::not_supported));
 }
 

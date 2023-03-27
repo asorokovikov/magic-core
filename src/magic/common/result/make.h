@@ -66,7 +66,7 @@ detail::Failure Fail(Error error);
 detail::Failure CurrentException();
 
 // Produce std::errc::not_supported error
-detail::Failure NotSupported();
+detail::Failure NotImplemented();
 
 template <typename T>
 detail::Failure PropagateError(const Result<T>& result) {
@@ -102,7 +102,7 @@ detail::Failure Throw(Args&&... args) {
 
 using magic::make_result::Fail;
 using magic::make_result::JustStatus;
-using magic::make_result::NotSupported;
+using magic::make_result::JustStatus;
 using magic::make_result::Ok;
 using magic::make_result::PropagateError;
 using magic::make_result::ToStatus;

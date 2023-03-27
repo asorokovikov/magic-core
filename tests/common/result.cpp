@@ -348,8 +348,8 @@ TEST(Result, ConstResultValue) {
   ASSERT_EQ(result.ValueOrThrow(), 42);
 }
 
-TEST(Result, NotSupported) {
-  Result<int> result = make_result::NotSupported();
+TEST(Result, NotImplemented) {
+  Result<int> result = make_result::NotImplemented();
 
   ASSERT_TRUE(result.HasError());
   ASSERT_TRUE(result.MatchErrorCode((int)std::errc::not_supported));
