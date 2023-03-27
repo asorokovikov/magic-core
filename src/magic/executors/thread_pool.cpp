@@ -30,6 +30,7 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::Execute(TaskNode* task) {
   counter_.Add();
   if (!tasks_.Put(task)) {
+    task->Discard();
     counter_.Done();
   }
 }

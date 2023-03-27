@@ -14,6 +14,7 @@ namespace detail {
 template <typename Func>
 class DefaultTask final : public TaskNode {
  public:
+
   static DefaultTask* Create(Func func) {
     return new DefaultTask(std::move(func));
   }
