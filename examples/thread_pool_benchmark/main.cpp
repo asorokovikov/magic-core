@@ -1,158 +1,86 @@
 #include <fmt/core.h>
 
 #include <magic/common/stopwatch.h>
-#include <magic/executors/thread_pool.h>
 
-#include <atomic>
+#include <magic/executors/thread_pool.h>
+#include <magic/fibers/sync/mutex.h>
+#include <magic/fibers/sync/wait_group.h>
+
 #include <vector>
-#include <thread>
 #include <numeric>
 
 using namespace magic;
+using namespace magic::fibers;
 
 //////////////////////////////////////////////////////////////////////
 
-class AtomicCounter final {
- public:
-  void Increment() {
-    value_.fetch_add(1);
-  }
+void WorkloadMutex() {
+  for (size_t index = 0; index < 13; ++index) {
+    Go([&] {
+      WaitGroup wg;
 
-  size_t Value() const {
-    return value_.load();
-  }
+      size_t cs1 = 0;
+      Mutex mutex1;
 
- private:
-  std::atomic<size_t> value_ = 0;
-};
+      size_t cs2 = 0;
+      Mutex mutex2;
 
-//////////////////////////////////////////////////////////////////////
+      for (size_t i = 0; i < 100; ++i) {
+        wg.Add();
 
-void Stress() {
-  AtomicCounter counter;
-  Stopwatch stopwatch;
-
-  std::vector<std::thread> threads;
-  for (size_t index = 0; index < 10; ++index) {
-    threads.emplace_back([&counter] {
-      for (size_t index = 0; index < 1'000'000; ++index) {
-        counter.Increment();
+        Go([&] {
+          for (size_t j = 0; j < 65536; ++j) {
+            {
+              std::lock_guard lock(mutex1);
+              ++cs1;
+            }
+            if (j % 17 == 0) {
+              self::Yield();
+            }
+            {
+              std::lock_guard lock(mutex2);
+              ++cs2;
+            }
+          }
+          wg.Done();
+        });
       }
+
+      wg.Wait();
     });
   }
-
-  for (auto&& t : threads) {
-    t.join();
-  }
-
-  auto elapsed_ms = stopwatch.ElapsedMs();
-
-  fmt::println("Iteration: {}", counter.Value());
-  fmt::println("Elapsed: {} ms", elapsed_ms);
 }
 
-//////////////////////////////////////////////////////////////////////
-
-inline void Pause() {
-  asm volatile("pause\n" : : : "memory");
-}
-
-//////////////////////////////////////////////////////////////////////
-
-class SpinLock final {
- public:
-  void Lock() {
-    while (locked_.exchange(1, std::memory_order::acquire) == 1) {
-      while (locked_.load(std::memory_order::relaxed) == 1) {
-        Pause();
-      }
-    }
-  }
-
-  void Unlock() {
-    locked_.store(0, std::memory_order::release);
-  }
-
- private:
-  std::atomic<uint32_t> locked_ = 0;
-};
-
-size_t TestSpinLock() {
-  Stopwatch stopwatch;
-  SpinLock spinlock;
-
-  size_t counter = 0;
-
-  std::vector<std::thread> threads;
-  for (size_t index = 0; index < 10; ++index) {
-    threads.emplace_back([&] {
-      // Contender thread
-      for (size_t index = 0; index < 100'500; ++index) {
-        spinlock.Lock();
-        ++counter;  // Critical section
-        spinlock.Unlock();
-      }
-    });
-  }
-
-  for (auto&& t : threads) {
-    t.join();
-  }
-
-  auto elapsed_ms = stopwatch.ElapsedMs();
-
-  fmt::println("Iteration: {}", counter);
-  fmt::println("Elapsed: {} ms", elapsed_ms);
-
-  return elapsed_ms;
-}
-
-//////////////////////////////////////////////////////////////////////
-//
-//void WorkloadMutex() {
-//  for (size_t index = 0; index < 13; ++index) {
-//    Go([&]{
-//      WaitGroup wg;
-//
-//      size_t critical_section_1 = 0;
-//      Mutex mutex1;
-//
-//      Mutex mutex2;
-//
-//
-//    });
-//  }
-//}
-//
 ////////////////////////////////////////////////////////////////////////
-//
-//void RunBenchmark() {
-//  Stopwatch stopwatch;
-//  auto scheduler = ThreadPool(4);
-//
-//  Go(scheduler, []{
-//    WorkloadMutex();
-//  });
-//
-//  scheduler.WaitAll();
-//  scheduler.Stop();
-//
-//  const auto elapsedMs = stopwatch.ElapsedMs();
-//  fmt::println("~({} ms) elapsed", elapsedMs);
-//}
+
+auto RunBenchmark() {
+  Stopwatch stopwatch;
+  ThreadPool scheduler(4);
+
+  Go(scheduler, [] {
+    WorkloadMutex();
+  });
+
+  scheduler.WaitIdle();
+  scheduler.Stop();
+
+  const auto elapsed = stopwatch.Elapsed();
+
+  //  const auto elapsedMs = stopwatch.ElapsedMs();
+  fmt::println("~({} ms) elapsed", elapsed.Millisecond());
+
+  return elapsed;
+}
 
 //////////////////////////////////////////////////////////////////////
 
 int main() {
-  fmt::println("Stress test");
-
-  static const size_t kIteration = 20;
+  static const size_t kIteration = 5;
 
   auto metrics = std::vector<size_t>(kIteration);
   for (size_t index = 0; index < kIteration; ++index) {
-    //    Stress();
-    auto elapsed_ms = TestSpinLock();
-    metrics.push_back(elapsed_ms);
+    auto elapsed = RunBenchmark();
+    metrics.push_back(elapsed.Millisecond());
   }
 
   auto average = std::reduce(metrics.begin(), metrics.end()) / kIteration;

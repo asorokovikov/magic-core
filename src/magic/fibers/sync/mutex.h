@@ -17,6 +17,7 @@ namespace magic::fibers {
 
 //////////////////////////////////////////////////////////////////////
 
+// LockFree mutex
 class Mutex final {
   using State = uint64_t;
 

@@ -4,6 +4,7 @@
 
 #include <magic/common/cpu_time.h>
 #include <magic/fibers/sync/wait_group.h>
+#include <magic/executors/thread_pool.h>
 
 using WaitGroup = magic::fibers::WaitGroup;
 
