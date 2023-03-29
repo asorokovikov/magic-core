@@ -40,7 +40,7 @@ void ThreadPool::WaitIdle() {
 }
 
 void ThreadPool::Stop() {
-  tasks_.Shutdown([this](TaskNode* task) {
+  tasks_.Close([this](TaskNode* task) {
     task->Discard();
     counter_.Done();
   });

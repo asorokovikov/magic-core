@@ -51,6 +51,17 @@ class UnboundedBlockingQueue final {
     not_empty_.notify_all();
   }
 
+  template <typename Func>
+  void Shutdown(Func&& disposer) {
+    std::lock_guard guard(mutex_);
+    for (auto&& item : buffer_) {
+      disposer(std::move(item));
+    }
+    closed_ = true;
+    buffer_.clear();
+    not_empty_.notify_all();
+  }
+
  private:
   auto TakeLocked() -> T {
     WHEELS_ASSERT(!buffer_.empty(), "Buffer is empty");

@@ -1,10 +1,9 @@
 #pragma once
 
+#include <magic/concurrency/intrusive/blocking_queue.h>
 #include <magic/concurrency/atomic_counter.h>
 #include <magic/executors/executor.h>
 #include <magic/executors/task.h>
-
-#include <magic/concurrency/intrusive/blocking_queue.h>
 
 #include <thread>
 #include <vector>

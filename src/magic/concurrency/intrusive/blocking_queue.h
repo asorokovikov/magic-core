@@ -45,15 +45,13 @@ class MPMCBlockingQueue final {
   }
 
   // Close queue for producers
-
   void Close() {
     CloseImpl(false, [](T*) {});
   }
 
   // Close queue for producers and consumers and discard existing items
-
   template <typename Func>
-  void Shutdown(Func&& disposer) {
+  void Close(Func&& disposer) {
     CloseImpl(true, std::forward<Func>(disposer));
   }
 

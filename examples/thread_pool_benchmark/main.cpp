@@ -75,7 +75,7 @@ auto RunBenchmark() {
 //////////////////////////////////////////////////////////////////////
 
 int main() {
-  static const size_t kIteration = 5;
+  static const size_t kIteration = 1;
 
   auto metrics = std::vector<size_t>(kIteration);
   for (size_t index = 0; index < kIteration; ++index) {
