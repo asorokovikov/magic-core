@@ -68,4 +68,25 @@ class ProcessCPUTimer {
 
 //////////////////////////////////////////////////////////////////////
 
+class CpuTimeBudgetGuard {
+ public:
+  explicit CpuTimeBudgetGuard(std::chrono::milliseconds budget)
+      : budget_(budget) {}
+
+  std::chrono::microseconds Usage() const {
+    return timer_.Elapsed();
+  }
+
+  ~CpuTimeBudgetGuard() {
+    assert(timer_.Elapsed() < budget_);
+  }
+
+ private:
+  std::chrono::milliseconds budget_;
+  ProcessCPUTimer timer_;
+};
+
+
+//////////////////////////////////////////////////////////////////////
+
 }  // namespace magic

@@ -34,6 +34,32 @@ class [[nodiscard]] Failure final {
   const Error error_;
 };
 
+template <typename R>
+struct Invoker {
+  template <typename F, typename... Args>
+  static Result<R> Invoke(F&& f, Args&&... args) {
+    try {
+      return Result<R>::Ok(f(std::forward<Args>(args)...));
+    } catch (...) {
+      return Result<R>::Fail({std::current_exception()});
+    }
+  }
+};
+
+template <>
+struct Invoker<void> {
+  template <typename F, typename... Args>
+  static Status Invoke(F&& f, Args&&... args) {
+    try {
+      f(std::forward<Args>(args)...);
+      return Status::Ok();
+    } catch (...) {
+      return Status::Fail({std::current_exception()});
+    }
+  }
+};
+
+
 }  // namespace detail
 
 //////////////////////////////////////////////////////////////////////
@@ -83,6 +109,14 @@ Status JustStatus(const Result<T>& result) {
     return Status::Fail(result.Error());
   }
 }
+
+template <typename F, typename... Args>
+auto Invoke(F&& f, Args&&... args) {
+  using R = decltype(f(std::forward<Args>(args)...));
+  return detail::Invoker<R>::Invoke(std::forward<F>(f),
+                                    std::forward<Args>(args)...);
+}
+
 
 // Make result with exception
 template <typename E, typename... Args>

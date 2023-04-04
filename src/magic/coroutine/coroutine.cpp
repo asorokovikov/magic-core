@@ -2,9 +2,9 @@
 
 #include <magic/fibers/core/stack.h>
 #include <magic/concurrency/local/ptr.h>
+#include <magic/common/defer.h>
 
 #include <wheels/core/assert.hpp>
-#include <wheels/core/defer.hpp>
 
 namespace magic {
 
@@ -20,8 +20,7 @@ Coroutine::Coroutine(Routine routine)
 
 void Coroutine::Resume() {
   auto prev = current.Exchange(this);
-
-  wheels::Defer rollback([prev]() {
+  auto rollback = Defer([prev]() {
     current = prev;
   });
 

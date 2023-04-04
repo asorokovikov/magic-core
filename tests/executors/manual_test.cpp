@@ -19,7 +19,7 @@ TEST(ManualExecutor, JustWorks) {
 
   ASSERT_FALSE(manual.HasTasks());
 
-  ASSERT_FALSE(manual.RunOnce());
+  ASSERT_FALSE(manual.RunNext());
   ASSERT_EQ(manual.RunAtMost(99), 0);
 
   Execute(manual, [&]() {
@@ -39,7 +39,7 @@ TEST(ManualExecutor, JustWorks) {
 
   ASSERT_EQ(step, 0);
 
-  ASSERT_TRUE(manual.RunOnce());
+  ASSERT_TRUE(manual.RunNext());
 
   ASSERT_EQ(step, 1);
 
@@ -56,7 +56,7 @@ TEST(ManualExecutor, JustWorks) {
   ASSERT_EQ(step, 3);
 
   ASSERT_FALSE(manual.HasTasks());
-  ASSERT_FALSE(manual.RunOnce());
+  ASSERT_FALSE(manual.RunNext());
 }
 
 //////////////////////////////////////////////////////////////////////

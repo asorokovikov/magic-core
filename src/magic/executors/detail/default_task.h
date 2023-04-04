@@ -43,6 +43,7 @@ class DefaultTask final : public TaskNode {
  private:
   Func func_;
 };
+
 }  // namespace detail
 
 //////////////////////////////////////////////////////////////////////

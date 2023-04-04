@@ -25,8 +25,8 @@ class MPSCLockFreeIntrusiveStack {
     }
   }
 
-  template <typename Func>
-  void ConsumeAll(Func func) {
+  template <typename F>
+  void ConsumeAll(F func) {
     auto top = head_.exchange(nullptr, std::memory_order::acquire);
     Node* current = top;
     while (current) {

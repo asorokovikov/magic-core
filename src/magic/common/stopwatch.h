@@ -8,12 +8,7 @@ namespace magic {
 
 using Clock = std::chrono::steady_clock;
 using Timestamp = std::chrono::time_point<Clock>;
-
-struct Duration : public std::chrono::duration<double> {
-  size_t Millisecond() const {
-    return duration_cast<std::chrono::milliseconds>(*this).count();
-  }
-};
+using Duration = std::chrono::duration<double>;
 
 //////////////////////////////////////////////////////////////////////
 

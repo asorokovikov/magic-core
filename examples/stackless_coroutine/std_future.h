@@ -7,7 +7,7 @@
 
 namespace detail {
 
-}  // namespace detail
+
 
 template <typename T>
 struct StdFutureCoroutinePromise {
@@ -67,14 +67,16 @@ struct StdFutureCoroutinePromise<void> {
   }
 };
 
+}  // namespace detail
+
 //////////////////////////////////////////////////////////////////////
 
 template <typename R, typename... Args>
 struct std::coroutine_traits<std::future<R>, Args...> {
-  using promise_type = StdFutureCoroutinePromise<R>;
+  using promise_type = detail::StdFutureCoroutinePromise<R>;
 };
 
 template <typename... Args>
 struct std::coroutine_traits<void, Args...> {
-  using promise_type = StdFutureCoroutinePromise<void>;
+  using promise_type = detail::StdFutureCoroutinePromise<void>;
 };

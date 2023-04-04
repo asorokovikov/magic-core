@@ -38,3 +38,7 @@ add_test_executable(lock_free_intrusive_queue_test concurrency/lockfree/lock_fre
 # filesystem
 
 add_test_executable(file_test filesystem/file_test.cpp)
+
+# futures
+
+add_test_executable(futures_test futures/futures_test.cpp)

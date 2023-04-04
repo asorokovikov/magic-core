@@ -27,7 +27,7 @@ class ManualExecutor final : public IExecutor {
   size_t RunAtMost(size_t limit);
 
   // Run task if queue is not empty
-  bool RunOnce() {
+  bool RunNext() {
     return RunAtMost(1) == 1;
   }
 

@@ -1,9 +1,7 @@
 #pragma once
 
-#include <magic/fibers/core/core.h>
 #include <magic/fibers/core/awaiter.h>
 #include <magic/executors/execute.h>
-
 #include <magic/common/routine.h>
 
 namespace magic {
