@@ -3,6 +3,7 @@
 #include <magic/futures/core/callback.h>
 
 #include <magic/common/result.h>
+#include <magic/concurrency/rendezvous.h>
 #include <magic/executors/executor.h>
 
 #include <wheels/core/assert.hpp>
@@ -21,29 +22,17 @@ namespace detail {
 
 template <typename T>
 class SharedState {
-  enum States {
-    Start = 0,
-    OnlyResult = 1,
-    OnlyCallback = 2,
-    Finish = 3,
-  };
-
  public:
-  explicit SharedState(IExecutor* executor) : executor_(executor), state_(States::Start) {
+  explicit SharedState(IExecutor* executor) : executor_(executor) {
   }
 
   bool HasResult() const {
-    auto state = state_.load(std::memory_order::acquire);
-    return state == States::OnlyResult || state == States::Finish;
+    return state_.Produced();
   }
 
-  bool HasCallback() const {
-    auto state = state_.load(std::memory_order::acquire);
-    return state == States::OnlyCallback || state == States::Finish;
-  }
-
-  std::optional<Result<T>> GetResult() {
-    return std::move(result_);
+  Result<T> GetResult() {
+    WHEELS_VERIFY(state_.Consume(), "Future is not completed");
+    return std::move(*result_);
   }
 
   void SetExecutor(IExecutor* executor) {
@@ -54,65 +43,33 @@ class SharedState {
     return *executor_;
   }
 
-  void SetResult(Result<T> result) {
-    WHEELS_VERIFY(!HasResult(), "Result is already added");
-
+  // Wait-free
+  void SetResult(Result<T>&& result) {
     result_.emplace(std::move(result));
-    auto state = state_.load(std::memory_order::acquire);
-
-    if (state == States::Start) {
-      if (state_.compare_exchange_strong(state, States::OnlyResult, std::memory_order::release,
-                                         std::memory_order::acquire)) {
-        return;
-      }
-      assert(state == States::OnlyCallback);
-    }
-
-    if (state == States::OnlyCallback) {
-      state_.store(States::Finish, std::memory_order::relaxed);
+    if (state_.Produce()) {
       InvokeCallback();
-      return;
     }
-
-    WHEELS_UNREACHABLE();
   }
 
-  void SetCallback(Callback<T> callback) {
-    WHEELS_VERIFY(!HasCallback(), "Callback is already added");
-    callback_ = std::move(callback);
-    auto state = state_.load(std::memory_order::acquire);
-
-    if (state == States::Start) {
-      if (state_.compare_exchange_strong(state, States::OnlyCallback)) {
-        return;
-      }
-      assert(state == States::OnlyResult);
-    }
-
-    if (state == States::OnlyResult) {
-      state_.store(States::Finish, std::memory_order::relaxed);
+  void SetCallback(CallbackBase<T>* callback) {
+    WHEELS_ASSERT(callback, "Expected not null");
+    callback_ = callback;
+    if (state_.Consume()) {
       InvokeCallback();
-      return;
     }
-
-    WHEELS_UNREACHABLE();
   }
 
  private:
   void InvokeCallback() {
-    Execute(*executor_, [cb = std::move(callback_), res = std::move(*result_)]() mutable {
-      cb(std::move(res));
-    });
-//    Execute(*executor_, [cb = callback_, res = std::move(*result_)]() mutable {
-//      cb->Invoke(std::move(res));
-//    });
+    callback_->SetResult(std::move(*result_));
+    executor_->Execute(callback_);
   }
 
  private:
   IExecutor* executor_;
-  Callback<T> callback_;
+  CallbackBase<T>* callback_ = nullptr;
   std::optional<Result<T>> result_;
-  std::atomic<States> state_;
+  Rendezvous state_;
 };
 
 //////////////////////////////////////////////////////////////////////

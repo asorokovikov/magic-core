@@ -19,6 +19,14 @@ struct Contract;
 
 //////////////////////////////////////////////////////////////////////
 
+// Callback: void(Result<T>)
+
+template <typename F, typename T>
+concept CallbackConcept = requires (F callback, Result<T> result) {
+  { callback(std::move(result)) } -> std::same_as<void>;
+};
+
+
 // Continuation: T -> U
 
 template <typename F, typename T>

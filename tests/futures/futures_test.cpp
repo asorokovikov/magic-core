@@ -28,10 +28,7 @@ TEST(Futures, JustWorks) {
   std::move(p).SetValue(42);
   ASSERT_TRUE(f.IsReady());
 
-  auto optional_result = std::move(f).GetResult();
-  ASSERT_TRUE(optional_result.has_value());
-
-  auto result = optional_result.value();
+  auto result = std::move(f).GetResult();
   ASSERT_TRUE(result.IsOk());
   ASSERT_EQ(*result, 42);
 }
@@ -49,11 +46,7 @@ TEST(Futures, MoveOnly) {
   ASSERT_TRUE(f.IsReady());
 
   auto result = std::move(f).GetResult();
-  ASSERT_TRUE(result.has_value());
-  ASSERT_TRUE(result->IsOk());
-
-  auto value = std::move(result.value());
-  ASSERT_EQ(value->data, "Test");
+  ASSERT_EQ(result->data, "Test");
 }
 
 TEST(Futures, SetError) {
@@ -64,12 +57,8 @@ TEST(Futures, SetError) {
   ASSERT_TRUE(f.IsReady());
 
   auto result = std::move(f).GetResult();
-  ASSERT_TRUE(result.has_value());
-  ASSERT_TRUE(result->HasError());
-
-  auto value = std::move(result.value());
-  auto err = value.ErrorCode();
-  std::cout << "Error = " << err.message();
+  ASSERT_TRUE(result.HasError());
+  ASSERT_EQ(result.ErrorCode(), TimeoutError());
 }
 
 TEST(Futures, SetException) {
@@ -83,11 +72,8 @@ TEST(Futures, SetException) {
 
   auto result = std::move(f).GetResult();
 
-  ASSERT_TRUE(result.has_value());
-  ASSERT_TRUE(result->HasError());
-
-  auto error = std::move(result.value());
-  ASSERT_THROW(error.ValueOrThrow(), std::runtime_error);
+  ASSERT_TRUE(result.HasError());
+  ASSERT_THROW(result.ValueOrThrow(), std::runtime_error);
 }
 
 TEST(Futures, ExecuteValue) {
@@ -100,7 +86,34 @@ TEST(Futures, ExecuteValue) {
   manual.RunNext();
 
   ASSERT_TRUE(f.IsReady());
-  ASSERT_EQ(std::move(f).GetResult()->ValueOrThrow(), 7);
+  ASSERT_EQ(std::move(f).GetResult().ValueOrThrow(), 7);
+}
+
+TEST(Futures, WaitValue) {
+  auto f = futures::Execute(GetInlineExecutor(), []() {
+    return 7;
+  });
+
+  ASSERT_TRUE(f.IsReady());
+
+  auto result = futures::WaitValue(std::move(f));
+  ASSERT_EQ(result, 7);
+}
+
+TEST(Futures, ExecuteError) {
+  ManualExecutor manual;
+
+  auto f = futures::Execute(manual, []() -> Unit {
+    throw std::runtime_error("Test");
+  });
+
+  manual.RunNext();
+
+  ASSERT_TRUE(f.IsReady());
+  auto result = std::move(f).GetResult();
+
+  ASSERT_TRUE(result.HasError());
+  ASSERT_THROW(result.ThrowIfError(), std::runtime_error);
 }
 
 TEST(Futures, Subscribe1) {
@@ -160,6 +173,23 @@ TEST(Futures, Subscribe3) {
   pool.Stop();
 }
 
+TEST(Futures, CallbackRunOnce) {
+  auto [f, p] = MakeContract<int>();
+  size_t done = 0;
+
+  std::move(f).Subscribe([&done](auto result) {
+    ASSERT_EQ(*result, 7);
+    ++done;
+  });
+
+  ASSERT_EQ(done, 0);
+
+  // Run callback here
+  std::move(p).SetValue(7);
+
+  ASSERT_EQ(done, 1);
+}
+
 TEST(Futures, SubscribeVia) {
   ManualExecutor manual;
 
@@ -215,7 +245,24 @@ TEST(Futures, Then1) {
   });
 
   std::move(p).SetValue(3);
-  ASSERT_EQ(std::move(g).GetResult()->ValueOrThrow(), 4);
+  ASSERT_EQ(std::move(g).GetResult().ValueOrThrow(), 4);
+}
+
+TEST(Futures, ThenRunOnce) {
+  auto [f, p] = MakeContract<int>();
+  size_t done = 0;
+
+  auto g = std::move(f).Then([&](int value) {
+    ++done;
+    return value + 1;
+  });
+
+  ASSERT_EQ(done, 0);
+
+  std::move(p).SetValue(3);
+  ASSERT_EQ(std::move(g).GetResult().ValueOrThrow(), 4);
+
+  ASSERT_EQ(done, 1);
 }
 
 TEST(Futures, Then2) {
@@ -264,11 +311,11 @@ TEST(Futures, Then4) {
 
   std::move(p).SetError(TimeoutError());
 
-//  auto result = futures::WaitResult(std::move(g));
-//  ASSERT_TRUE(result.HasError());
-//  ASSERT_EQ(result.ErrorCode(), TimeoutError());
+  //  auto result = futures::WaitResult(std::move(g));
+  //  ASSERT_TRUE(result.HasError());
+  //  ASSERT_EQ(result.ErrorCode(), TimeoutError());
 
-  ASSERT_TRUE(std::move(g).GetResult()->HasError());
+  ASSERT_TRUE(std::move(g).GetResult().HasError());
 }
 
 // Then chaining
@@ -340,25 +387,27 @@ TEST(Futures, PipelineRecover) {
   auto budget = CpuTimeBudgetGuard(100ms);
   auto done = false;
 
-  futures::Execute(pool,[]() {
-    return 1;
-  })
-  .Then([](int) -> int {
-    throw std::runtime_error("Fail");
-  })
-  .Then([](int) -> int {
-    std::abort();  // Skipped
-  })
-  .Recover([](Error) {
-    return make_result::Ok(7);
-  })
-  .Then([](int value) {
-    return value + 1;
-  })
-  .Subscribe([&done](Result<int> result) {
-    ASSERT_EQ(*result, 8);
-    done = true;
-  });
+  futures::Execute(pool,
+                   []() {
+                     return 1;
+                   })
+      .Then([](int) -> int {
+        throw std::runtime_error("Fail");
+      })
+      .Then([](int) -> int {
+        std::abort();  // Skipped
+      })
+      .Recover([](Error error) {
+        assert(error.HasError());
+        return make_result::Ok(7);
+      })
+      .Then([](int value) {
+        return value + 1;
+      })
+      .Subscribe([&done](Result<int> result) {
+        ASSERT_EQ(*result, 8);
+        done = true;
+      });
 
   size_t tasks = pool.RunAll();
 
@@ -410,20 +459,20 @@ TEST(Futures, Via) {
   int step = 0;
 
   auto f2 = std::move(f)
-    .Via(manual1)
-    .Then([&](int value) {
-      step = 1;
-      return value + 1;
-    })
-    .Then([&](int value) {
-      step = 2;
-      return value + 2;
-    })
-    .Via(manual2)
-    .Then([&](int value) {
-      step = 3;
-      return value + 3;
-    });
+                .Via(manual1)
+                .Then([&](int value) {
+                  step = 1;
+                  return value + 1;
+                })
+                .Then([&](int value) {
+                  step = 2;
+                  return value + 2;
+                })
+                .Via(manual2)
+                .Then([&](int value) {
+                  step = 3;
+                  return value + 3;
+                });
 
   // Launch pipeline
   std::move(p).SetValue(0);
@@ -434,15 +483,15 @@ TEST(Futures, Via) {
   ASSERT_EQ(step, 3);
 
   auto f3 = std::move(f2)
-    .Then([&](int value) {
-      step = 4;
-      return value + 4;
-    })
-    .Via(manual1)
-    .Then([&](int value) {
-      step = 5;
-      return value + 5;
-    });
+                .Then([&](int value) {
+                  step = 4;
+                  return value + 4;
+                })
+                .Via(manual1)
+                .Then([&](int value) {
+                  step = 5;
+                  return value + 5;
+                });
 
   ASSERT_EQ(manual2.RunAll(), 1);
   ASSERT_EQ(step, 4);
@@ -451,7 +500,7 @@ TEST(Futures, Via) {
   ASSERT_EQ(step, 5);
 
   ASSERT_TRUE(f3.IsReady());
-  auto value = std::move(f3).GetResult()->ValueOrThrow();
+  auto value = std::move(f3).GetResult().ValueOrThrow();
   ASSERT_EQ(value, 1 + 2 + 3 + 4 + 5);
 }
 
@@ -462,19 +511,20 @@ TEST(Futures, AsyncThen) {
   auto pool2 = ThreadPool{4};
   auto budget = CpuTimeBudgetGuard(100ms);
 
-  auto pipeline = futures::Execute(pool1,[]() -> int {
-      return 1;
-    })
-    .Then([&pool2](int value) {
-      return futures::Execute(pool2, [value]() {
-        return value + 1;
-      });
-    })
-    .Then([&pool1](int value) {
-      return futures::Execute(pool1, [value]() {
-        return value + 2;
-      });
-    });
+  auto pipeline = futures::Execute(pool1,
+                                   []() -> int {
+                                     return 1;
+                                   })
+                      .Then([&pool2](int value) {
+                        return futures::Execute(pool2, [value]() {
+                          return value + 1;
+                        });
+                      })
+                      .Then([&pool1](int value) {
+                        return futures::Execute(pool1, [value]() {
+                          return value + 2;
+                        });
+                      });
 
   int value = futures::WaitValue(std::move(pipeline));
 

@@ -39,7 +39,7 @@ class [[nodiscard]] Future : public detail::HoldState<T> {
   }
 
   /// Non-blocking. May call from any thread.
-  std::optional<Result<T>> GetResult() && {
+  Result<T> GetResult() && {
     return ReleaseState()->GetResult();
   }
 
@@ -59,34 +59,74 @@ class [[nodiscard]] Future : public detail::HoldState<T> {
 
   /// Consume future result with asynchronous callback
   /// Post-condition: IsValid() == false
-  void Subscribe(Callback<T> callback) && {
-    ReleaseState()->SetCallback(std::move(callback));
-  }
+  void Subscribe(CallbackBase<T>* callback) &&;
+
+  /// Consume future result with asynchronous callback
+  /// Post-condition: IsValid() == false
+  template <typename F>
+  requires CallbackConcept<F, T> void Subscribe(F callback) &&;
 
   // Combinators
 
   // Synchronous Then (also known as Map)
   // Future<T> -> U(T) -> Future<U>
   template <typename F>
-  requires SyncContinuation<F, T>
-  auto Then(F continuation) &&;
+  requires SyncContinuation<F, T> auto Then(F continuation) &&;
 
   // Asynchronous Then (also known as FlatMap)
   // Future<T> -> Future<U>(T) -> Future<U>
   template <typename F>
-  requires AsyncContinuation<F, T>
-  auto Then(F continuation) &&;
+  requires AsyncContinuation<F, T> auto Then(F continuation) &&;
 
   // Error handling
   // Future<T> -> Result<T>(Error) -> Future<T>
   template <typename F>
-  requires ErrorHandler<F, T>
-  Future<T> Recover(F handler) &&;
+  requires ErrorHandler<F, T> Future<T> Recover(F handler) &&;
 
  private:
   explicit Future(detail::StateRef<T> state) : detail::HoldState<T>(std::move(state)) {
   }
 };
+
+//////////////////////////////////////////////////////////////////////
+
+namespace detail {
+
+template <typename T, typename F>
+class UniqueCallback : public CallbackBase<T> {
+ public:
+  explicit UniqueCallback(F func) : func_(std::move(func)) {
+  }
+
+  void Invoke(Result<T> result) noexcept override {
+    func_(std::move(result));
+//    make_result::Invoke(func_, std::move(result));
+    delete this;
+  }
+
+  void Discard() noexcept override {
+    delete this;
+  }
+
+ private:
+  F func_;
+};
+
+}  // namespace detail
+
+//////////////////////////////////////////////////////////////////////
+
+template <typename T>
+void Future<T>::Subscribe(CallbackBase<T>* callback) && {
+  ReleaseState()->SetCallback(std::move(callback));
+}
+
+template <typename T>
+template <typename F>
+requires CallbackConcept<F, T> void Future<T>::Subscribe(F callback) && {
+  auto base = new detail::UniqueCallback<T, F>(std::forward<F>(callback));
+  std::move(*this).Subscribe(base);
+}
 
 //////////////////////////////////////////////////////////////////////
 
@@ -110,18 +150,17 @@ auto MakeContract() {
 // Synchronous Then
 // Future<T> -> U(T) -> Future<U>
 template <typename T>
-template <typename F> requires SyncContinuation<F, T>
-auto Future<T>::Then(F continuation) && {
+template <typename F>
+requires SyncContinuation<F, T> auto Future<T>::Then(F cont) && {
   using U = std::invoke_result_t<F, T>;
 
   auto [f, p] = MakeContractVia<U>(GetExecutor());
-  auto callback = [p = std::move(p), cont = std::move(continuation)](Result<T> result) mutable {
+  auto callback = [p = std::move(p), f = cont](Result<T> result) mutable {
     if (result.IsOk()) {
-      std::move(p).Set(make_result::Invoke(cont, *result));
+      std::move(p).Set(make_result::Invoke(f, *result));
     } else {
       std::move(p).SetError(result.Error());
     }
-    cont(std::move(result));
   };
   std::move(*this).Subscribe(std::move(callback));
 
@@ -134,8 +173,8 @@ auto Future<T>::Then(F continuation) && {
 // Future<T> -> Future<U>(T) -> Future<U>
 
 template <typename T>
-template <typename F> requires AsyncContinuation<F, T>
-auto Future<T>::Then(F continuation) && {
+template <typename F>
+requires AsyncContinuation<F, T> auto Future<T>::Then(F continuation) && {
   using U = typename detail::Flatten<std::invoke_result_t<F, T>>::ValueType;
 
   auto [f, p] = MakeContractVia<U>(GetExecutor());
@@ -161,8 +200,7 @@ auto Future<T>::Then(F continuation) && {
 // Future<T> -> Result<T>(Error) -> Future<T>
 template <typename T>
 template <typename F>
-requires ErrorHandler<F, T>
-Future<T> Future<T>::Recover(F handler) && {
+requires ErrorHandler<F, T> Future<T> Future<T>::Recover(F handler) && {
   auto [f, p] = MakeContractVia<T>(GetExecutor());
   auto callback = [handler = handler, p = std::move(p)](Result<T> result) mutable {
     if (result.IsOk()) {

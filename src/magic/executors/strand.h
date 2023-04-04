@@ -32,7 +32,7 @@ class Strand final : public IExecutor, public TaskNode {
  private:
   IExecutor& executor_;
   Queue tasks_;
-  Atomic counter_;
+  Atomic counter_ = 0;
 };
 
 //////////////////////////////////////////////////////////////////////
