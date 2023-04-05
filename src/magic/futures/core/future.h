@@ -99,8 +99,7 @@ class UniqueCallback : public CallbackBase<T> {
   }
 
   void Invoke(Result<T> result) noexcept override {
-    func_(std::move(result));
-//    make_result::Invoke(func_, std::move(result));
+    make_result::Invoke(func_, std::move(result));
     delete this;
   }
 

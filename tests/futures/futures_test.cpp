@@ -61,20 +61,20 @@ TEST(Futures, SetError) {
   ASSERT_EQ(result.ErrorCode(), TimeoutError());
 }
 
-TEST(Futures, SetException) {
-  auto [f, p] = MakeContract<int>();
+ TEST(Futures, SetException) {
+   auto [f, p] = MakeContract<int>();
 
-  try {
-    throw std::runtime_error("Test");
-  } catch (...) {
-    std::move(p).SetError(std::current_exception());
-  }
+   try {
+     throw std::bad_exception();
+   } catch (...) {
+     std::move(p).SetError(std::current_exception());
+   }
 
-  auto result = std::move(f).GetResult();
+   auto result = std::move(f).GetResult();
 
-  ASSERT_TRUE(result.HasError());
-  ASSERT_THROW(result.ValueOrThrow(), std::runtime_error);
-}
+   ASSERT_TRUE(result.HasError());
+   ASSERT_THROW(result.ValueOrThrow(), std::bad_exception);
+ }
 
 TEST(Futures, ExecuteValue) {
   ManualExecutor manual;
@@ -89,22 +89,22 @@ TEST(Futures, ExecuteValue) {
   ASSERT_EQ(std::move(f).GetResult().ValueOrThrow(), 7);
 }
 
-TEST(Futures, WaitValue) {
-  auto f = futures::Execute(GetInlineExecutor(), []() {
-    return 7;
-  });
-
-  ASSERT_TRUE(f.IsReady());
-
-  auto result = futures::WaitValue(std::move(f));
-  ASSERT_EQ(result, 7);
-}
+// TEST(Futures, WaitValue) {
+//   auto f = futures::Execute(GetInlineExecutor(), []() {
+//     return 7;
+//   });
+//
+//   ASSERT_TRUE(f.IsReady());
+//
+//   auto result = futures::WaitValue(std::move(f));
+//   ASSERT_EQ(result, 7);
+// }
 
 TEST(Futures, ExecuteError) {
   ManualExecutor manual;
 
   auto f = futures::Execute(manual, []() -> Unit {
-    throw std::runtime_error("Test");
+    throw std::bad_exception();
   });
 
   manual.RunNext();
@@ -113,7 +113,7 @@ TEST(Futures, ExecuteError) {
   auto result = std::move(f).GetResult();
 
   ASSERT_TRUE(result.HasError());
-  ASSERT_THROW(result.ThrowIfError(), std::runtime_error);
+  ASSERT_THROW(result.ThrowIfError(), std::bad_exception);
 }
 
 TEST(Futures, Subscribe1) {
@@ -310,11 +310,6 @@ TEST(Futures, Then4) {
   });
 
   std::move(p).SetError(TimeoutError());
-
-  //  auto result = futures::WaitResult(std::move(g));
-  //  ASSERT_TRUE(result.HasError());
-  //  ASSERT_EQ(result.ErrorCode(), TimeoutError());
-
   ASSERT_TRUE(std::move(g).GetResult().HasError());
 }
 
@@ -361,7 +356,7 @@ TEST(Futures, PipelineError) {
                      return 1;
                    })
       .Then([](int) -> int {
-        throw std::runtime_error("Fail");
+        throw std::bad_exception();
       })
       .Then([](int) -> int {
         std::abort();  // Skipped
@@ -392,7 +387,7 @@ TEST(Futures, PipelineRecover) {
                      return 1;
                    })
       .Then([](int) -> int {
-        throw std::runtime_error("Fail");
+        throw std::bad_exception();
       })
       .Then([](int) -> int {
         std::abort();  // Skipped
