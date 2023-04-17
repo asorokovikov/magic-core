@@ -4,6 +4,7 @@ include(GoogleTest)
 
 add_test_executable(shared_ptr_test common/shared_ptr_test.cpp)
 add_test_executable(result_test common/result.cpp)
+add_test_executable(string_reader_test common/string_reader_test.cpp)
 
 # coroutine
 
@@ -42,3 +43,7 @@ add_test_executable(file_test filesystem/file_test.cpp)
 # futures
 
 add_test_executable(futures_test futures/futures_test.cpp)
+
+# net
+
+add_test_executable(net_test net/net_test.cpp)
