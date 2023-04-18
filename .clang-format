@@ -1,7 +1,7 @@
 BasedOnStyle: Google
 ---
 Language: Cpp
-Standard: c++17
+Standard: c++20
 UseTab: Never
 TabWidth: 4
 IndentWidth: 2

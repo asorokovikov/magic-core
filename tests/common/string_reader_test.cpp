@@ -74,6 +74,15 @@ TEST(StringReader, SkipSpaces) {
   ASSERT_EQ(reader.SkipOne().SkipSpaces().NextChar(), '2');
 }
 
+TEST(StringReader, SkipDigits) {
+  auto source = std::string("123,456.789");
+  auto reader = StringReader(source);
+
+  ASSERT_EQ(reader.SkipDigits().NextChar(), ',');
+  ASSERT_EQ(reader.SkipOne().SkipDigits().NextChar(), '.');
+  ASSERT_TRUE(reader.SkipOne().SkipDigits().IsEmpty());
+}
+
 TEST(StringReader, SkipUntil) {
   auto source = std::string("12345");
   auto reader = StringReader(source);
@@ -112,15 +121,6 @@ TEST(StringReader, SkipLine) {
   ASSERT_TRUE(reader.SkipLine().IsEmpty());
 }
 
-TEST(StringReader, SkipDigits) {
-  auto source = std::string("123,456.789");
-  auto reader = StringReader(source);
-
-  ASSERT_EQ(reader.SkipDigits().NextChar(), ',');
-  ASSERT_EQ(reader.SkipOne().SkipDigits().NextChar(), '.');
-  ASSERT_TRUE(reader.SkipOne().SkipDigits().IsEmpty());
-}
-
 TEST(StringReader, ReadOne) {
   auto source = std::string("123");
   auto reader = StringReader(source);
@@ -148,6 +148,21 @@ TEST(StringReader, ReadUntil) {
   ASSERT_EQ(reader.ReadUntil('3'), "12");
 }
 
+TEST(StringReader, ReadToEndLine) {
+  const auto empty = std::string{};
+  auto reader = StringReader(empty);
+
+  ASSERT_TRUE(reader.ReadToEndLine().empty());
+
+  const auto source = "123\n456\n\r789\n\r"s;
+  reader = StringReader(source);
+  ASSERT_EQ(reader.ReadToEndLine(), "123");
+  ASSERT_EQ(reader.ReadToEndLine(), "456");
+  ASSERT_EQ(reader.ReadToEndLine(), "789");
+  ASSERT_TRUE(reader.ReadToEndLine().empty());
+  ASSERT_TRUE(reader.IsEmpty());
+}
+
 TEST(StringReader, ReadInt) {
   auto source = std::string("42 55");
   auto reader = StringReader(source);
@@ -171,4 +186,26 @@ TEST(StringReader, ReadDouble) {
   actual = reader.SkipSpaces().ReadDouble();
   expected = 13.0;
   ASSERT_DOUBLE_EQ(actual, expected);
+}
+
+TEST(StringReader, ParseHttpHeader) {
+  const auto source = R"(
+    HTTP/1.1 200 OK
+    X-Powered-By: Express
+    Content-Type: application/json; charset=utf-8
+    Content-Length: 388
+    ETag: W/"184-btA3qP8tg9Wrq1KC5bpgvj92E8w"
+    Date: Mon, 17 Apr 2023 18:32:32 GMT
+    Connection: keep-alive
+    Keep-Alive: timeout=5
+  )";
+
+  auto reader = StringReader(source);
+
+  ASSERT_EQ(reader.SkipUntil("HTTP").ReadUntilSpace(), "HTTP/1.1");
+  ASSERT_EQ(reader.SkipSpaces().ReadToEndLine(), "200 OK");
+  ASSERT_EQ(reader.SkipSpaces().ReadUntil(':'), "X-Powered-By");
+  ASSERT_EQ(reader.SkipOne().SkipSpaces().ReadToEndLine(), "Express");
+  ASSERT_EQ(reader.SkipSpaces().ReadUntil(':'), "Content-Type");
+  ASSERT_EQ(reader.SkipOne().SkipSpaces().ReadToEndLine(), "application/json; charset=utf-8");
 }

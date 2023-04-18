@@ -72,6 +72,21 @@ FetchContent_MakeAvailable(twist)
 
 # --------------------------------------------------------------------
 
+project_log("FetchContent: curl")
+
+FetchContent_Declare(
+        curl
+        GIT_REPOSITORY https://github.com/curl/curl.git
+        GIT_TAG 98fac31b0613fc8cb88709a78c816d38d715fe11
+)
+
+set(HTTP_ONLY ON CACHE INTERNAL "" FORCE)
+set(BUILD_CURL_EXE OFF CACHE INTERNAL "" FORCE)
+set(BUILD_TESTING OFF)
+FetchContent_MakeAvailable(curl)
+
+# --------------------------------------------------------------------
+
 project_log("FetchContent: asio")
 
 FetchContent_Declare(

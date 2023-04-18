@@ -28,6 +28,10 @@ class [[nodiscard]] Future : public detail::HoldState<T> {
     return Future<T>{nullptr};
   }
 
+  Future<T> Forget() && {
+    ReleaseState();
+  }
+
   bool IsValid() const {
     return HasState();
   }

@@ -7,7 +7,7 @@ file(GLOB_RECURSE LIB_HEADERS ${LIB_PATH}/*.h)
 
 enable_language(ASM)
 
-set(LIB_LIST "wheels;fmt;function2;sure;asio;twist")
+set(LIB_LIST "wheels;fmt;function2;sure;asio;twist;CURL::libcurl")
 
 add_library(${PROJECT_NAME} STATIC ${LIB_CXX_SOURCES} ${LIB_ASM_SOURCES} ${LIB_HEADERS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${LIB_INCLUDE_PATH})

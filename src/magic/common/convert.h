@@ -3,6 +3,7 @@
 #include <optional>
 #include <string_view>
 #include <sstream>
+#include <charconv>
 
 namespace magic {
 
@@ -18,6 +19,14 @@ std::optional<T> ConvertTo(const std::string_view s) {
   }
 
   return result;
+}
+
+template <>
+std::optional<int> ConvertTo<int>(const std::string_view s) {
+  int value;
+  std::from_chars(s.data(), s.data() + s.size(), value);
+
+  return value;
 }
 
 //////////////////////////////////////////////////////////////////////

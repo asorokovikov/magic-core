@@ -61,20 +61,20 @@ TEST(Futures, SetError) {
   ASSERT_EQ(result.ErrorCode(), TimeoutError());
 }
 
- TEST(Futures, SetException) {
-   auto [f, p] = MakeContract<int>();
+TEST(Futures, SetException) {
+  auto [f, p] = MakeContract<int>();
 
-   try {
-     throw std::bad_exception();
-   } catch (...) {
-     std::move(p).SetError(std::current_exception());
-   }
+  try {
+    throw std::bad_exception();
+  } catch (...) {
+    std::move(p).SetError(std::current_exception());
+  }
 
-   auto result = std::move(f).GetResult();
+  auto result = std::move(f).GetResult();
 
-   ASSERT_TRUE(result.HasError());
-   ASSERT_THROW(result.ValueOrThrow(), std::bad_exception);
- }
+  ASSERT_TRUE(result.HasError());
+  ASSERT_THROW(result.ValueOrThrow(), std::bad_exception);
+}
 
 TEST(Futures, ExecuteValue) {
   ManualExecutor manual;
@@ -453,21 +453,22 @@ TEST(Futures, Via) {
 
   int step = 0;
 
-  auto f2 = std::move(f)
-                .Via(manual1)
-                .Then([&](int value) {
-                  step = 1;
-                  return value + 1;
-                })
-                .Then([&](int value) {
-                  step = 2;
-                  return value + 2;
-                })
-                .Via(manual2)
-                .Then([&](int value) {
-                  step = 3;
-                  return value + 3;
-                });
+  auto f2 =
+      std::move(f)
+          .Via(manual1)
+          .Then([&](int value) {
+            step = 1;
+            return value + 1;
+          })
+          .Then([&](int value) {
+            step = 2;
+            return value + 2;
+          })
+          .Via(manual2)
+          .Then([&](int value) {
+            step = 3;
+            return value + 3;
+          });
 
   // Launch pipeline
   std::move(p).SetValue(0);
@@ -506,20 +507,21 @@ TEST(Futures, AsyncThen) {
   auto pool2 = ThreadPool{4};
   auto budget = CpuTimeBudgetGuard(100ms);
 
-  auto pipeline = futures::Execute(pool1,
-                                   []() -> int {
-                                     return 1;
-                                   })
-                      .Then([&pool2](int value) {
-                        return futures::Execute(pool2, [value]() {
-                          return value + 1;
-                        });
-                      })
-                      .Then([&pool1](int value) {
-                        return futures::Execute(pool1, [value]() {
-                          return value + 2;
-                        });
-                      });
+  auto pipeline =
+      futures::Execute(pool1,
+                       []() -> int {
+                         return 1;
+                       })
+          .Then([&pool2](int value) {
+            return futures::Execute(pool2, [value]() {
+              return value + 1;
+            });
+          })
+          .Then([&pool1](int value) {
+            return futures::Execute(pool1, [value]() {
+              return value + 2;
+            });
+          });
 
   int value = futures::WaitValue(std::move(pipeline));
 

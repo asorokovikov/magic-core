@@ -3,6 +3,7 @@
 #include <charconv>
 #include <sstream>
 #include <string_view>
+#include <cassert>
 
 namespace magic {
 
@@ -16,7 +17,12 @@ class StringReader final {
   // ~ Public Interface
 
   char NextChar() const {
+    assert(source_.length() > 0);
     return source_[0];
+  }
+
+  bool HasNext() const {
+    return !source_.empty();
   }
 
   bool Next(char ch) const {
@@ -39,15 +45,12 @@ class StringReader final {
     return source_.empty();
   }
 
-  bool HasNext() const {
-    return !source_.empty();
-  }
-
   size_t Length() const {
     return source_.length();
   }
 
   StringReader& Skip(size_t count) {
+    assert(source_.length() >= count);
     source_.remove_prefix(count);
     return *this;
   }
@@ -83,11 +86,28 @@ class StringReader final {
     return *this;
   }
 
+  StringReader& SkipUntilSpace() {
+    return SkipUntil(' ');
+  }
+
+  StringReader& SkipAfterSpace() {
+    return SkipAfter(' ');
+  }
+
   StringReader& SkipLine() {
     SkipAfter('\n');
-    if (Next('\r')) {
+    if (HasNext() && Next('\r')) {
       SkipOne();
     }
+    return *this;
+  }
+
+  StringReader& SkipUntil(std::string_view s) {
+    auto offset = source_.find(s);
+    if (offset == std::string_view::npos) {
+      offset = source_.length();
+    }
+    source_.remove_prefix(offset);
     return *this;
   }
 
@@ -95,6 +115,17 @@ class StringReader final {
     auto ch = NextChar();
     SkipOne();
     return ch;
+  }
+
+  std::string_view ReadToEndLine() {
+    auto result = ReadUntil('\n');
+    SkipLine();
+    return result;
+  }
+
+  std::string_view ReadUntilSpace() {
+    auto result = ReadUntil(' ');
+    return result;
   }
 
   std::string_view ReadUntil(char ch) {
@@ -134,7 +165,7 @@ class StringReader final {
     auto string = source_;
 
     SkipDigits();
-    if (Next('.') || Next(',')) {
+    if (HasNext() && (Next('.') || Next(','))) {
       SkipOne().SkipDigits();
     }
 

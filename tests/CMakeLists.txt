@@ -47,3 +47,4 @@ add_test_executable(futures_test futures/futures_test.cpp)
 # net
 
 add_test_executable(net_test net/net_test.cpp)
+add_test_executable(http_header_test net/http_header_test.cpp)

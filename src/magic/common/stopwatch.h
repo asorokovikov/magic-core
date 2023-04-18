@@ -1,16 +1,10 @@
 #pragma once
 
-#include <chrono>
+#include <magic/common/time.h>
 
 using namespace std::chrono_literals;
 
 namespace magic {
-
-using Clock = std::chrono::steady_clock;
-using Timestamp = std::chrono::time_point<Clock>;
-using Duration = std::chrono::duration<double>;
-
-//////////////////////////////////////////////////////////////////////
 
 // Usage:
 //
@@ -36,6 +30,10 @@ class Stopwatch final {
 
   Duration Elapsed() const {
     return {Clock::now() - timestamp_};
+  }
+
+  TimeSpan ElapsedInterval() const {
+    return TimeSpan{Clock::now() - timestamp_};
   }
 
   size_t ElapsedMs() const {

@@ -10,8 +10,6 @@ class CondVar final {
 
  public:
 
-  // ~ Public Interface
-
   void Wait(Lock& lock);
 
   void NotifyOne();

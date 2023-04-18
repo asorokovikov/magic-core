@@ -13,7 +13,7 @@ uint32_t Random::Next() {
   return generator.Next();
 }
 
-uint32_t magic::Random::Next(uint32_t max_value) {
+uint32_t Random::Next(uint32_t max_value) {
   return generator.Next(max_value);
 }
 
