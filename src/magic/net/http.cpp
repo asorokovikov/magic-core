@@ -1,9 +1,10 @@
 #include <magic/net/http.h>
+#include <magic/net/http/request_builder.h>
+
 #include <magic/futures/execute.h>
 #include <magic/executors/thread_pool.h>
 #include <magic/common/stopwatch.h>
 
-#include <curl/curl.h>
 #include <fmt/core.h>
 #include <fmt/chrono.h>
 #include <fmt/std.h>
@@ -14,129 +15,132 @@
 
 namespace magic {
 
-//////////////////////////////////////////////////////////////////////
+HttpResponse Http::Get(std::string url) {
+  std::string response_header, response_content;
 
-namespace detail {
+  CURL* curl = curl_easy_init();
+  struct curl_slist* list = nullptr;
 
-static size_t WriteFunction(char* ptr, size_t size, size_t nmemb, std::string* data) {
-  size_t real_size = size * nmemb;
-  data->append(ptr, real_size);
-  return real_size;
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, detail::WriteFunction);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_content);
+
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, detail::WriteFunction);
+  curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_header);
+
+  const auto result = curl_easy_perform(curl);
+
+  if (result != CURLE_OK) {
+    curl_easy_cleanup(curl);
+    throw BaseException(curl_easy_strerror(result));
+  }
+
+  // HttpResponse
+
+  int64_t response_code;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
+  double total_time;
+  curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
+  auto elapsed = ToTimeSpan(total_time);
+
+  char* url_string{nullptr};
+  curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &url_string);
+  auto effective_url = std::string(url_string);
+
+  // Metrics
+
+  double downloaded, uploaded, average_download_speed, average_upload_speed;
+  curl_easy_getinfo(curl, CURLINFO_SIZE_DOWNLOAD, &downloaded);
+  curl_easy_getinfo(curl, CURLINFO_SIZE_UPLOAD, &uploaded);
+  curl_easy_getinfo(curl, CURLINFO_SPEED_DOWNLOAD, &average_download_speed);
+  curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &average_upload_speed);
+
+  auto metrics = HttpRequestMetrics{.DownloadBytes = downloaded,
+                                    .UploadBytes = uploaded,
+                                    .AverageDownloadSpeed = average_download_speed,
+                                    .AverageUploadSpeed = average_upload_speed,
+                                    .Duration = elapsed};
+
+  // Cleanup
+
+  curl_easy_cleanup(curl);
+
+  return HttpResponse{HttpStatus::FromStatusCode(response_code), HttpHeader::Parse(response_header),
+                      std::move(metrics), effective_url, std::move(response_content)};
 }
 
-}  // namespace detail
+HttpResponse Http::PostJson(std::string url, std::string json) {
+  std::string response_header, response_content;
 
-//////////////////////////////////////////////////////////////////////
+  CURL* curl = curl_easy_init();
+  struct curl_slist* list = nullptr;
 
-class HttpRequest final {
- public:
-  HttpRequest(CURL* curl) : curl_(curl) {
-    assert(curl_);
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, detail::WriteFunction);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_content);
+
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, detail::WriteFunction);
+  curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_header);
+
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json.c_str());
+
+  list = curl_slist_append(list, "Content-Type: application/json");
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+
+  const auto result = curl_easy_perform(curl);
+  curl_slist_free_all(list);
+
+  if (result != CURLE_OK) {
+    curl_easy_cleanup(curl);
+    throw BaseException(curl_easy_strerror(result));
   }
 
-  ~HttpRequest() {
-    curl_easy_cleanup(curl_);
-  }
+  // HttpResponse
 
-  // Non-copyable
-  HttpRequest(const HttpRequest&) = delete;
-  HttpRequest& operator=(const HttpRequest&) = delete;
+  int64_t response_code;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
-  HttpResponse Run() {
-    auto content = std::string();
-    auto header = std::string();
+  double total_time;
+  curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
+  auto elapsed = ToTimeSpan(total_time);
 
-    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, detail::WriteFunction);
-    curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &content);
+  char* url_string{nullptr};
+  curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &url_string);
+  auto effective_url = std::string(url_string);
 
-    curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, detail::WriteFunction);
-    curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &header);
+  // Metrics
 
-    const auto result = curl_easy_perform(curl_);
+  double downloaded, uploaded, average_download_speed, average_upload_speed;
+  curl_easy_getinfo(curl, CURLINFO_SIZE_DOWNLOAD, &downloaded);
+  curl_easy_getinfo(curl, CURLINFO_SIZE_UPLOAD, &uploaded);
+  curl_easy_getinfo(curl, CURLINFO_SPEED_DOWNLOAD, &average_download_speed);
+  curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &average_upload_speed);
 
-    if (result != CURLE_OK) {
-      fmt::println("curl_easy_perform() failed: {}", curl_easy_strerror(result));
-    }
+  auto metrics = HttpRequestMetrics{.DownloadBytes = downloaded,
+                                    .UploadBytes = uploaded,
+                                    .AverageDownloadSpeed = average_download_speed,
+                                    .AverageUploadSpeed = average_upload_speed,
+                                    .Duration = elapsed};
 
-    int64_t response_code;
-    curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &response_code);
+  // Cleanup
 
-    double total_time;
-    curl_easy_getinfo(curl_, CURLINFO_TOTAL_TIME, &total_time);
-    auto elapsed = ToTimeSpan(total_time);
+  curl_easy_cleanup(curl);
 
-    char* url_string{nullptr};
-    curl_easy_getinfo(curl_, CURLINFO_EFFECTIVE_URL, &url_string);
+  return HttpResponse{HttpStatus::FromStatusCode(response_code), HttpHeader::Parse(response_header),
+                      std::move(metrics), effective_url, std::move(response_content)};
+}
 
-    // Metrics
+Future<HttpResponse> Http::PostJsonAsync(IExecutor& executor, std::string url, std::string json) {
+  return futures::Execute(executor, [url = std::move(url), json = std::move(json)]() mutable {
+    return Http::PostJson(std::move(url), std::move(json));
+  });
+}
 
-    double downloaded, uploaded, average_download_speed, average_upload_speed;
-    curl_easy_getinfo(curl_, CURLINFO_SIZE_DOWNLOAD, &downloaded);
-    curl_easy_getinfo(curl_, CURLINFO_SIZE_UPLOAD, &uploaded);
-    curl_easy_getinfo(curl_, CURLINFO_SPEED_DOWNLOAD, &average_download_speed);
-    curl_easy_getinfo(curl_, CURLINFO_SPEED_UPLOAD, &average_upload_speed);
-
-    auto metrics = HttpRequestMetrics{.DownloadBytes = downloaded,
-                                      .UploadBytes = uploaded,
-                                      .AverageDownloadSpeed = average_download_speed,
-                                      .AverageUploadSpeed = average_upload_speed,
-                                      .Duration = elapsed};
-
-    return {HttpStatus::FromStatusCode(response_code), HttpHeader::Parse(header),
-            std::move(metrics), std::string(url_string), std::move(content)};
-  }
-
- private:
-  CURL* curl_;
-};
-
-class HttpRequestBuilder final {
- public:
-  HttpRequestBuilder() {
-    Init();
-  }
-
-  // Non-copyable
-  HttpRequestBuilder(const HttpRequestBuilder&) = delete;
-  HttpRequestBuilder& operator=(const HttpRequestBuilder&) = delete;
-
-  HttpRequestBuilder& SetUrl(std::string url) {
-    url_ = std::move(url);
-    auto res = curl_easy_setopt(curl_, CURLOPT_URL, url_.c_str());
-    if (res != CURLE_OK) {
-      fmt::println("curl_easy_perform() failed: {}", curl_easy_strerror(res));
-    }
-    return *this;
-  }
-
-  HttpRequest Build() {
-    auto curl = std::exchange(curl_, nullptr);
-    return HttpRequest(curl);
-  }
-
-  ~HttpRequestBuilder() {
-    if (curl_ != nullptr) {
-      curl_easy_cleanup(curl_);
-    }
-  }
-
- private:
-  void Init() {
-    curl_ = curl_easy_init();
-    assert(curl_);
-  }
-
- private:
-  CURL* curl_;
-  std::string url_;
-};
-
-//////////////////////////////////////////////////////////////////////
-
-HttpResponse Http::Get(std::string url) {
-  auto request = HttpRequestBuilder().SetUrl(std::move(url)).Build();
-  auto response = request.Run();
-  return response;
+Future<HttpResponse> Http::PostJsonAsync(std::string url, std::string json) {
+  return PostJsonAsync(*ThreadPool::Current(), std::move(url), std::move(json));
 }
 
 Future<HttpResponse> Http::GetAsync(std::string url) {
@@ -144,9 +148,8 @@ Future<HttpResponse> Http::GetAsync(std::string url) {
 }
 
 Future<HttpResponse> Http::GetAsync(IExecutor& executor, std::string url) {
-  return futures::Execute(executor, [url = std::move(url)]() {
-    auto result = Http::Get(url);
-    return result;
+  return futures::Execute(executor, [url = std::move(url)]() mutable {
+    return Http::Get(std::move(url));
   });
 }
 
@@ -155,5 +158,7 @@ Future<std::string> Http::GetStringAsync(std::string url) {
     return response.GetContent();
   });
 }
+
+//////////////////////////////////////////////////////////////////////
 
 }  // namespace magic

@@ -1,5 +1,5 @@
-#include <magic/net/core/response.h>
-#include <magic/net/core/format.h>
+#include <magic/net/http/response.h>
+#include <magic/net/http/format.h>
 
 namespace magic {
 

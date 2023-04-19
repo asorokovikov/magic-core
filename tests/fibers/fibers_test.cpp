@@ -16,6 +16,19 @@ TEST(Fibers, JustWorks) {
 
 //////////////////////////////////////////////////////////////////////
 
+TEST(Fibers, IsFiber) {
+  RunScheduler(1, [] {
+    ASSERT_TRUE(self::IsFiber());
+    self::Yield();
+  });
+
+  ASSERT_FALSE(self::IsFiber());
+
+  PrintAllocatorMetrics(GetAllocatorMetrics());
+}
+
+//////////////////////////////////////////////////////////////////////
+
 TEST(Fibers, TwoFibers) {
   RunScheduler(1, [] {
     size_t step = 0;

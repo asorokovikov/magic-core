@@ -4,9 +4,9 @@
 
 #include <magic/common/string_builder.h>
 
-#include <magic/net/core/status.h>
-#include <magic/net/core/response.h>
-#include <magic/net/core/header.h>
+#include <magic/net/http/status.h>
+#include <magic/net/http/response.h>
+#include <magic/net/http/header.h>
 
 //////////////////////////////////////////////////////////////////////
 

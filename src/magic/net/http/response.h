@@ -1,7 +1,7 @@
 #pragma once
 
-#include <magic/net/core/status.h>
-#include <magic/net/core/header.h>
+#include <magic/net/http/status.h>
+#include <magic/net/http/header.h>
 #include <magic/common/time.h>
 
 namespace magic {

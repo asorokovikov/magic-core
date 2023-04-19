@@ -1,5 +1,5 @@
-#include <magic/net/core/header.h>
 #include <magic/common/string_reader.h>
+#include <magic/net/http/header.h>
 
 namespace magic {
 

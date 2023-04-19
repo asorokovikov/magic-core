@@ -12,10 +12,14 @@ include(cmake/Dependencies.cmake)
 include(cmake/Helpers.cmake)
 include(cmake/SetupLinker.cmake)
 
+option(MAGIC_TESTS "Enable tests" OFF)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "bin")
 
 add_subdirectory(src)
 add_subdirectory(examples)
 
-enable_testing()
-add_subdirectory(tests)
+if (MAGIC_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif ()

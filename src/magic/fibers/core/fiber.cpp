@@ -93,7 +93,7 @@ Fiber* Fiber::RunFiber() {
   WHEELS_ASSERT(state_ == FiberState::Suspended, "Unexpected fiber state");
 
   auto awaiter = std::exchange(awaiter_, nullptr);
-  if (awaiter) {
+  if (awaiter != nullptr) {
     auto next = awaiter->OnCompleted(this);
     if (next.IsValid()) {
       return next.fiber_;
@@ -158,6 +158,10 @@ void Suspend(ISuspendAwaiter& awaiter) {
 
 auto GetFiberId() -> FiberId {
   return Fiber::GetCurrentFiber().GetFiberId();
+}
+
+bool IsFiber() {
+  return (bool)this_thread_fiber;
 }
 
 }  // namespace self

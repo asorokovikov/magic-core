@@ -7,6 +7,7 @@
 #include <magic/fibers/core/stack.h>
 
 using namespace magic;
+using namespace std::string_literals;
 
 bool KeepRunning(Duration duration = 10s, bool reset = false) {
   static Stopwatch sw;

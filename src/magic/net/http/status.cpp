@@ -1,4 +1,4 @@
-#include <magic/net/core/status.h>
+#include <magic/net/http/status.h>
 
 namespace magic {
 

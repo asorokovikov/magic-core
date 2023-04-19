@@ -31,6 +31,8 @@ void Suspend(ISuspendAwaiter& awaiter);
 
 auto GetFiberId() -> FiberId;
 
+bool IsFiber();
+
 } // namespace self
 
 //////////////////////////////////////////////////////////////////////

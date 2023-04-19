@@ -1,6 +1,6 @@
 #pragma once
 
-#include <magic/net/core/response.h>
+#include <magic/net/http/response.h>
 #include <magic/executors/executor.h>
 #include <magic/futures/core/future.h>
 
@@ -15,6 +15,9 @@ struct Http {
   // Send a GET request to the specified url.
   static HttpResponse Get(std::string url);
 
+  // Send a POST request to the specified Uri with JSON content.
+  static HttpResponse PostJson(std::string url, std::string json);
+
   // Send a GET request to the specified url as an asynchronous operation.
   static Future<HttpResponse> GetAsync(std::string url);
 
@@ -23,6 +26,12 @@ struct Http {
 
   // Send a GET request to the specified url as an asynchronous operation.
   static Future<HttpResponse> GetAsync(IExecutor& executor, std::string url);
+
+  // Send a POST request to the specified Uri as an asynchronous operation.
+  static Future<HttpResponse> PostJsonAsync(std::string url, std::string json);
+
+  // Send a POST request to the specified Uri as an asynchronous operation.
+  static Future<HttpResponse> PostJsonAsync(IExecutor& executor, std::string url, std::string json);
 
 };
 

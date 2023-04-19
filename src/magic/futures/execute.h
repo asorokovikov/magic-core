@@ -16,8 +16,8 @@ auto Execute(IExecutor& executor, F func) {
 
   auto [f, p] = MakeContractVia<T>(executor);
 
-  magic::Execute(executor, [p = std::move(p), func]() mutable {
-    std::move(p).Set(make_result::Invoke(func));
+  magic::Execute(executor, [p = std::move(p), f = std::move(func)]() mutable {
+    std::move(p).Set(make_result::Invoke(f));
   });
 
   return std::move(f);
