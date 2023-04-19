@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fmt/core.h>
+
 #include <cstdlib>
 #include <optional>
 #include <string_view>
@@ -16,6 +18,13 @@ struct Environment {
     }
 
     return std::nullopt;
+  }
+
+  static std::string GetString(std::string_view name) {
+    if (const auto value = std::getenv(name.data())) {
+      return *ConvertTo<std::string>(value);
+    }
+    throw std::runtime_error{fmt::format("failed to find environment variable with name: {}", name)};
   }
 };
 
