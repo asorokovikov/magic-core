@@ -8,13 +8,15 @@
 
 namespace magic {
 
-template <typename T>
-std::optional<T> Get(std::string_view name) {
-  if (const auto value = std::getenv(name.data())) {
-    return ConvertTo<T>(value);
-  }
+struct Environment {
+  template <typename T>
+  static std::optional<T> Get(std::string_view name) {
+    if (const auto value = std::getenv(name.data())) {
+      return ConvertTo<T>(value);
+    }
 
-  return std::nullopt;
-}
+    return std::nullopt;
+  }
+};
 
 }  // namespace magic

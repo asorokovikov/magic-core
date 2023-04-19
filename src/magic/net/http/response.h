@@ -33,10 +33,11 @@ class HttpResponse final {
     return status_;
   }
 
-  HttpHeader GetHeader() const {
+  const HttpHeader& GetHeader() const {
+    return header_;
   }
 
-  std::string GetContent() const {
+  const std::string& GetContent() const {
     return content_;
   }
 
