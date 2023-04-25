@@ -66,9 +66,9 @@ TEST(Strand, JustWorks) {
 
   size_t counter = 0;
 
-  static const size_t kIncrements = 1234;
+  static const size_t increments = 1234;
 
-  for (size_t i = 0; i < kIncrements; ++i) {
+  for (size_t i = 0; i < increments; ++i) {
     Execute(strand, [&]() {
       ExpectThreadPool(pool);
       ++counter;
@@ -77,7 +77,7 @@ TEST(Strand, JustWorks) {
 
   pool.WaitIdle();
 
-  ASSERT_EQ(counter, kIncrements);
+  ASSERT_EQ(counter, increments);
 
   pool.Stop();
  }
@@ -90,9 +90,9 @@ TEST(Strand, JustWorks) {
 
   size_t next_index = 0;
 
-  static const size_t kTasks = 12345;
+  static const size_t tasks = 12345;
 
-  for (size_t i = 0; i < kTasks; ++i) {
+  for (size_t i = 0; i < tasks; ++i) {
     Execute(strand, [&, i]() {
       ExpectThreadPool(pool);
       ASSERT_EQ(next_index, i);
@@ -102,7 +102,7 @@ TEST(Strand, JustWorks) {
 
   pool.WaitIdle();
 
-  ASSERT_EQ(next_index, kTasks);
+  ASSERT_EQ(next_index, tasks);
 
   pool.Stop();
  }
@@ -334,6 +334,46 @@ TEST(Strand, JustWorks) {
 
     ASSERT_LE(stopwatch.Elapsed(), 100ms);
   }
+
+  pool.WaitIdle();
+  pool.Stop();
+ }
+
+ //////////////////////////////////////////////////////////////////////
+
+ class AsyncObject : public std::enable_shared_from_this<AsyncObject> {
+ public:
+  AsyncObject(IExecutor& executor) : strand_(executor) {
+  }
+
+  void Run() {
+    Execute(strand_, [self = shared_from_this()]() {
+      self->IncrementCounter();
+    });
+  }
+
+ private:
+  void IncrementCounter() {
+    fmt::println("Counter #{}", ++counter_);
+  }
+
+ private:
+  Strand strand_;
+  size_t counter_ = 0;
+ };
+
+ TEST(Strand, AsyncObject) {
+  ThreadPool pool{4};
+
+  auto object = std::make_shared<AsyncObject>(pool);
+
+  for (size_t index = 0; index < 17; ++index) {
+    Execute(pool, [object]() {
+      object->Run();
+    });
+  }
+
+  object.reset();
 
   pool.WaitIdle();
   pool.Stop();

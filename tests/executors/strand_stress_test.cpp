@@ -12,7 +12,7 @@ using namespace magic;
 //////////////////////////////////////////////////////////////////////
 
 bool KeepRunning(magic::Duration duration = 10s) {
-  static magic::Stopwatch sw;
+  static Stopwatch sw;
   return sw.Elapsed() < duration;
 }
 

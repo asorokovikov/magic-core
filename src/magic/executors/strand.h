@@ -1,38 +1,54 @@
 #pragma once
 
+#include <magic/common/refer/ref_counted.h>
 #include <magic/executors/executor.h>
 #include <magic/concurrency/lockfree/lockfree_intrusive_queue.h>
 
 namespace magic {
 
-//////////////////////////////////////////////////////////////////////
+namespace detail {
 
-// Strand (serial executor, asynchronous mutex)
-
-class Strand final : public IExecutor, public TaskNode {
-  using Queue = MPSCLockFreeIntrusiveQueue<TaskNode>;
-  using Atomic = std::atomic<size_t>;
+class StrandImpl : public TaskNode, public RefCounted<StrandImpl> {
+  using TaskQueue = MPSCLockFreeIntrusiveQueue<TaskNode>;
 
  public:
-  Strand(IExecutor& executor);
+  explicit StrandImpl(IExecutor& e) : executor_(e) {
+  }
 
-  // IExecutor
-  void Execute(TaskNode* task) override;
+  void Execute(TaskNode* task);
 
+  // TaskNode
   void Run() noexcept override;
   void Discard() noexcept override;
-
-  IExecutor& GetExecutor() const {
-    return executor_;
-  }
 
  private:
   void RunNextBatch();
 
  private:
   IExecutor& executor_;
-  Queue tasks_;
-  Atomic counter_ = 0;
+  TaskQueue tasks_;
+  std::atomic<size_t> counter_ = 0;
+};
+
+}  // namespace detail
+
+//////////////////////////////////////////////////////////////////////
+
+// Strand (serial executor, asynchronous mutex)
+
+class Strand final : public IExecutor {
+ public:
+  Strand(IExecutor& executor);
+
+  // IExecutor
+  void Execute(TaskNode* task) override;
+
+  IExecutor& AsExecutor() {
+    return *this;
+  }
+
+ private:
+  Ref<detail::StrandImpl> impl_;
 };
 
 //////////////////////////////////////////////////////////////////////

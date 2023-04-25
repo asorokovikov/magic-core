@@ -2,9 +2,11 @@ include(GoogleTest)
 
 # common
 
+add_test_executable(common_test common/common_test.cpp)
 add_test_executable(shared_ptr_test common/shared_ptr_test.cpp)
 add_test_executable(result_test common/result.cpp)
 add_test_executable(string_reader_test common/string_reader_test.cpp)
+add_test_executable(ref_test common/ref_test.cpp)
 
 # coroutine
 

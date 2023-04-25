@@ -8,8 +8,8 @@ function(add_test_executable BINARY_NAME)
         add_executable(${BINARY_NAME} ${BINARY_NAME}.cpp)
     endif ()
     target_link_libraries(${BINARY_NAME} GTest::gtest_main ${PROJECT_NAME})
-#    add_test(${BINARY_NAME} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BINARY_NAME})
-    gtest_discover_tests(${BINARY_NAME})
+    add_test(${BINARY_NAME} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BINARY_NAME})
+#    gtest_discover_tests(${BINARY_NAME})
 endfunction()
 
 # Example

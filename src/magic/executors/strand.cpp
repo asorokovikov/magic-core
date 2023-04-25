@@ -2,23 +2,26 @@
 
 namespace magic {
 
-//////////////////////////////////////////////////////////////////////
-
-Strand::Strand(IExecutor& executor) : executor_(executor) {
+Strand::Strand(IExecutor& executor) : impl_(New<detail::StrandImpl>(executor)) {
 }
 
 void Strand::Execute(TaskNode* task) {
+  impl_->Execute(task);
+}
+
+void detail::StrandImpl::Execute(TaskNode* task) {
   tasks_.Put(task);
   if (counter_.fetch_add(1) == 0) {
     RunNextBatch();
   }
 }
 
-void Strand::RunNextBatch() {
+void detail::StrandImpl::RunNextBatch() {
+  AddRef();
   executor_.Execute(this);
 }
 
-void Strand::Run() noexcept {
+void detail::StrandImpl::Run() noexcept {
   auto completed = 0ul;
   auto items = tasks_.TakeAll();
 
@@ -31,9 +34,11 @@ void Strand::Run() noexcept {
   if (counter_.fetch_sub(completed) > completed) {
     RunNextBatch();
   }
+
+  ReleaseRef();
 }
 
-void Strand::Discard() noexcept {
+void detail::StrandImpl::Discard() noexcept {
   auto items = tasks_.TakeAll();
   while (items.HasItems()) {
     auto task = items.PopFront();

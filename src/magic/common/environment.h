@@ -1,11 +1,6 @@
 #pragma once
 
 #include <fmt/core.h>
-
-#include <cstdlib>
-#include <optional>
-#include <string_view>
-
 #include <magic/common/convert.h>
 
 namespace magic {

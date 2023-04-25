@@ -12,7 +12,7 @@ include(cmake/Dependencies.cmake)
 include(cmake/Helpers.cmake)
 include(cmake/SetupLinker.cmake)
 
-option(MAGIC_TESTS "Enable tests" OFF)
+option(MAGIC_TESTS "Enable tests" ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "bin")
 

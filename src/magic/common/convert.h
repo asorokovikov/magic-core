@@ -22,7 +22,7 @@ std::optional<T> ConvertTo(const std::string_view s) {
 }
 
 template <>
-std::optional<int> ConvertTo<int>(const std::string_view s) {
+inline std::optional<int> ConvertTo<int>(const std::string_view s) {
   int value;
   std::from_chars(s.data(), s.data() + s.size(), value);
 
